@@ -1,2 +1,4 @@
 # SMA-Group-D
-Repository for Simulation and Modeling in Astrophysics - Group D - Stan Barmentloo &amp; Pim Dröge
+Repository for the course Simulation and Modeling in Astrophysics, Leiden University.
+
+Repository made by Stan Barmentloo &amp; Pim Dröge
