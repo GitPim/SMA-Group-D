@@ -167,7 +167,7 @@ def vanilla_evolver(particle_system, converter, N_objects, end_time=4*10**3, tim
     for i in tqdm(range(len(times))):
         gravity_code.evolve_model(times[i])
         if stopping_condition.is_set():
-            resolve_collision(stopping_condition, gravity_code, particle_system, t)
+            resolve_collision(stopping_condition, gravity_code, particle_system, times[i])
         ch_g2l.copy()
         
         if i%(5*10**6) == 0:
