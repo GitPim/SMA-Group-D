@@ -8,6 +8,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import time
+import amuse.plot as plot
 from tqdm import tqdm
 from IPython.display import clear_output
 from amuse.lab import units, constants
@@ -56,7 +57,7 @@ def merge_two_bodies(bodies, particles_in_encounter):
     print("Actually merger occurred:")
     print("Two objects (M=",particles_in_encounter.mass.in_(units.MSun),
           ") collided with d=", d.length().in_(units.au))
-    #time.sleep(10)
+    time.sleep(10)
     new_particle=Particles(1)
     new_particle.mass = particles_in_encounter.total_mass()
     new_particle.position = com_pos
@@ -162,15 +163,35 @@ def vanilla_evolver(particle_system, converter, N_objects, end_time=4*10**3, tim
     gravity_code.particles.add_particles(particle_system)
     ch_g2l = gravity_code.particles.new_channel_to(particle_system)
     
-    times = np.arange(0., end_time, time_step) | units.day
+    times = np.arange(0., end_time, time_step) | units.yr
     
     for i in tqdm(range(len(times))):
+        
         gravity_code.evolve_model(times[i])
         if stopping_condition.is_set():
             resolve_collision(stopping_condition, gravity_code, particle_system, times[i])
         ch_g2l.copy()
         
-        if i%(5*10**6) == 0:
+        
+        
+        
+        
+        plot.scatter(gravity_code.particles.x.in_(units.AU), gravity_code.particles.y.in_(units.AU), s= 6)
+        for j in range(5):
+            plot.scatter(gravity_code.particles[j].x.in_(units.AU), gravity_code.particles[j].y.in_(units.AU), label = names[j])
+        plot.text(-35, 32, "Time = " + str(times[i])[0:7] + " yrs.")
+        plot.xlim((-(40 | units.AU)).value_in(units.AU), (40 | units.AU).value_in(units.AU))
+        plot.ylim((-(40 | units.AU)).value_in(units.AU), (40 | units.AU).value_in(units.AU))
+        plt.legend()
+        fig = plt.gcf()
+        fig.set_size_inches(12, 9)
+        clear_output(wait=True) 
+        plt.show()
+        
+        
+        
+        
+        if i%(10) == 0:
             write_set_to_file(particle_system, 'Vanilla_run1_time=' +str(np.log10(times[i].value_in(units.yr)))[0:5] +'.hdf5', format='hdf5', overwrite_file = True)
         
     gravity_code.stop()
@@ -178,5 +199,11 @@ def vanilla_evolver(particle_system, converter, N_objects, end_time=4*10**3, tim
     return particle_system
     
     
-vanilla_evolved_system = vanilla_evolver(final_system, final_converter, N_objects, end_time= 365.25*10**7, time_step= 50)
+vanilla_evolved_system = vanilla_evolver(final_system, final_converter, N_objects, end_time= 10**8, time_step= 10**2)
+
+
+# In[ ]:
+
+
+
 
