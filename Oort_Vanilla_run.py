@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[1]:
+# In[ ]:
 
 
 #Here we import all the necessary dependencies
@@ -23,7 +23,7 @@ from amuse.community.ph4.interface import ph4
 from amuse.io import write_set_to_file, read_set_from_file
 
 
-# In[2]:
+# In[ ]:
 
 
 def random_positions_and_velocities(N_objects, sun_loc):
@@ -46,28 +46,25 @@ def random_positions_and_velocities(N_objects, sun_loc):
     return positions, velocities
 
 
-# In[3]:
+# In[ ]:
 
 
 def merge_two_bodies(bodies, particles_in_encounter):
-    com_pos = particles_in_encounter.center_of_mass()
-    com_vel = particles_in_encounter.center_of_mass_velocity()
     d = (particles_in_encounter[0].position - particles_in_encounter[1].position)
     v = (particles_in_encounter[0].velocity - particles_in_encounter[1].velocity)
     print("Actually merger occurred:")
     print("Two objects (M=",particles_in_encounter.mass.in_(units.MSun),
           ") collided with d=", d.length().in_(units.au))
-    time.sleep(10)
-    new_particle=Particles(1)
-    new_particle.mass = particles_in_encounter.total_mass()
-    new_particle.position = com_pos
-    new_particle.velocity = com_vel
-    new_particle.radius = particles_in_encounter.radius.sum()
-    bodies.add_particles(new_particle)
-    bodies.remove_particles(particles_in_encounter)
+    
+    if particles_in_encounter[0].mass == 0 | units.MSun:
+        bodies.remove_particle(particles_in_encounter[0])
+    elif particles_in_encounter[1].mass == 0 | units.MSun:
+        bodies.remove_particle(particles_in_encounter[1])
+    elif particles_in_encounter[0].mass == 0 | units.MSun and particles_in_encounter[1].mass == 0 | units.MSun:
+        bodies.remove_particles(particles_in_encounter)
 
 
-# In[4]:
+# In[ ]:
 
 
 def resolve_collision(collision_detection, gravity_code, bodies, time):
@@ -81,7 +78,7 @@ def resolve_collision(collision_detection, gravity_code, bodies, time):
         bodies.synchronize_to(gravity_code.particles)
 
 
-# In[5]:
+# In[ ]:
 
 
 #Here we generate a basic solarsystem, with only the gas giants
@@ -98,7 +95,7 @@ def create_system():
 basic_giants_system = create_system()
 
 
-# In[6]:
+# In[ ]:
 
 
 #Define the number of Oort objects and create random velocities and positions
@@ -107,7 +104,7 @@ sun_loc = [basic_giants_system[0].x.in_(units.AU), basic_giants_system[0].y.in_(
 positions, velocities = random_positions_and_velocities(N_objects, sun_loc)
 
 
-# In[7]:
+# In[ ]:
 
 
 #Here we add the Oort cloud objects, according to a chosen distribution
@@ -127,14 +124,14 @@ def add_comet_objects(system, N_objects, rand_pos, rand_vel):
 complete_system = add_comet_objects(basic_giants_system, N_objects, positions, velocities)
 
 
-# In[8]:
+# In[ ]:
 
 
 final_system = complete_system
 final_system.move_to_center()
 
 
-# In[9]:
+# In[ ]:
 
 
 #Here we perform the conversion for the system
@@ -143,14 +140,12 @@ final_converter=nbody_system.nbody_to_si(final_system.mass.sum(),
                                    converter_length)
 
 
-# In[10]:
+# In[ ]:
 
 
 #Here we evolve the basic system, without grandtack or Milky way potential
 
 def vanilla_evolver(particle_system, converter, N_objects, end_time=4*10**3, time_step=0.1):
-    
-    names = ['Sun', 'Jupiter', 'Saturn', 'Uranus', 'Neptune']
     
     if N_objects > 2*10**3:
         gravity_code = Mercury(final_converter)
@@ -166,32 +161,14 @@ def vanilla_evolver(particle_system, converter, N_objects, end_time=4*10**3, tim
     times = np.arange(0., end_time, time_step) | units.yr
     
     for i in tqdm(range(len(times))):
-        
         gravity_code.evolve_model(times[i])
-        if stopping_condition.is_set():
+        while stopping_condition.is_set():
             resolve_collision(stopping_condition, gravity_code, particle_system, times[i])
+            ch_g2l.copy()
+            gravity_code.evolve_model(times[i])
+            
         ch_g2l.copy()
-        
-        
-        
-        
-        
-        plot.scatter(gravity_code.particles.x.in_(units.AU), gravity_code.particles.y.in_(units.AU), s= 6)
-        for j in range(5):
-            plot.scatter(gravity_code.particles[j].x.in_(units.AU), gravity_code.particles[j].y.in_(units.AU), label = names[j])
-        plot.text(-35, 32, "Time = " + str(times[i])[0:7] + " yrs.")
-        plot.xlim((-(40 | units.AU)).value_in(units.AU), (40 | units.AU).value_in(units.AU))
-        plot.ylim((-(40 | units.AU)).value_in(units.AU), (40 | units.AU).value_in(units.AU))
-        plt.legend()
-        fig = plt.gcf()
-        fig.set_size_inches(12, 9)
-        clear_output(wait=True) 
-        plt.show()
-        
-        
-        
-        
-        if i%(10) == 0:
+        if i%(100) == 0:
             write_set_to_file(particle_system, 'Vanilla_run1_time=' +str(np.log10(times[i].value_in(units.yr)))[0:5] +'.hdf5', format='hdf5', overwrite_file = True)
         
     gravity_code.stop()
@@ -199,7 +176,7 @@ def vanilla_evolver(particle_system, converter, N_objects, end_time=4*10**3, tim
     return particle_system
     
     
-vanilla_evolved_system = vanilla_evolver(final_system, final_converter, N_objects, end_time= 10**8, time_step= 10**2)
+vanilla_evolved_system = vanilla_evolver(final_system, final_converter, N_objects, end_time= 10**8, time_step= 10**5)
 
 
 # In[ ]:
