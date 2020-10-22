@@ -4,10 +4,17 @@
 # In[ ]:
 
 
+directory = "/data/s1968653/MWG_output/"
+
+
+# In[ ]:
+
+
 #Here we import all the necessary dependencies
 import numpy as np
 import matplotlib.pyplot as plt
 import time
+import amuse.plot as plot
 from tqdm import tqdm
 from IPython.display import clear_output
 from amuse.lab import units, constants
@@ -49,27 +56,24 @@ def random_positions_and_velocities(N_objects, sun_loc):
 
 
 def merge_two_bodies(bodies, particles_in_encounter):
-    com_pos = particles_in_encounter.center_of_mass()
-    com_vel = particles_in_encounter.center_of_mass_velocity()
     d = (particles_in_encounter[0].position - particles_in_encounter[1].position)
     v = (particles_in_encounter[0].velocity - particles_in_encounter[1].velocity)
-    print("Actually merger occurred:")
+    print("Collision:")
     print("Two objects (M=",particles_in_encounter.mass.in_(units.MSun),
           ") collided with d=", d.length().in_(units.au))
-    #time.sleep(10)
-    new_particle=Particles(1)
-    new_particle.mass = particles_in_encounter.total_mass()
-    new_particle.position = com_pos
-    new_particle.velocity = com_vel
-    new_particle.radius = particles_in_encounter.radius.sum()
-    bodies.add_particles(new_particle)
-    bodies.remove_particles(particles_in_encounter)
+    
+    if particles_in_encounter[0].mass == 0 | units.MSun:
+        bodies.remove_particle(particles_in_encounter[0])
+    elif particles_in_encounter[1].mass == 0 | units.MSun:
+        bodies.remove_particle(particles_in_encounter[1])
+    elif particles_in_encounter[0].mass == 0 | units.MSun and particles_in_encounter[1].mass == 0 | units.MSun:
+        bodies.remove_particles(particles_in_encounter)
 
 
 # In[ ]:
 
 
-def resolve_collision(collision_detection, gravity_code, bodies, time):
+def resolve_collision(collision_detection, gravity_code, gravity_bridge, bodies, time):
     print("Well, we have an actual collision between two or more objects.")
     print("This happened at time=", time.in_(units.yr))
     for ci in range(len(collision_detection.particles(0))): 
@@ -77,7 +81,7 @@ def resolve_collision(collision_detection, gravity_code, bodies, time):
                                                           collision_detection.particles(1)[ci]])
         colliding_objects = encountering_particles.get_intersecting_subset_in(bodies)
         merge_two_bodies(bodies, colliding_objects)
-        bodies.synchronize_to(gravity_code.particles)
+        bodies.synchronize_to(gravity_bridge.particles)
 
 
 # In[ ]:
@@ -119,7 +123,7 @@ def add_comet_objects(system, N_objects, rand_pos, rand_vel):
         oort.radius = (2.3 | units.km).in_(units.RSun) #This is purely non-zero for collisional purposes
         oort.position = (rand_pos[i, 0], rand_pos[i, 1], rand_pos[i, 2])
         oort.velocity = (rand_vel[i, 0], rand_vel[i, 1], rand_vel[i, 2])
-
+        
         system.add_particle(oort)
     return system
 
@@ -187,7 +191,7 @@ MW_potential = MilkyWay_galaxy()
 # In[ ]:
 
 
-final_system = complete_system#.add(velocities)
+final_system = complete_system
 final_system.move_to_center()
 
 
@@ -220,20 +224,23 @@ def MWG_evolver(particle_system, potential, converter, N_objects, end_time=4*10*
     gravity_bridge = 0
     gravity_bridge = bridge.Bridge(use_threading=False)
     gravity_bridge.add_system(gravity_code, (potential,) )
-    gravity_bridge.timestep = time_step|units.day
+    gravity_bridge.timestep = 10 |units.yr
     
-    times = np.arange(0., end_time, time_step) | units.day
+    times = np.arange(0., end_time, time_step) | units.yr
     for i in tqdm(range(len(times))):
         gravity_bridge.evolve_model(times[i])
-        if stopping_condition.is_set():
-            resolve_collision(stopping_condition, gravity_code, particle_system, times[i])
+        while stopping_condition.is_set() and len(stopping_condition.particles(0)) != 0 and len(stopping_condition.particles(1)) != 0:
+            resolve_collision(stopping_condition, gravity_code, gravity_bridge, particle_system, times[i])
+            ch_g2l.copy()
+            gravity_bridge.evolve_model(times[i])
         ch_g2l.copy()
         
-        if i%(5*10**5) == 0:
-            write_set_to_file(particle_system, 'MWG_run1_time=' +str(np.log10(times[i].value_in(units.yr)))[0:5] +'.hdf5', format='hdf5', overwrite_file = True)
+        
+        if i%(100) == 0:
+            write_set_to_file(particle_system, directory + 'MWG_run1_time=' +str(np.log10(times[i].value_in(units.yr)))[0:5] +'.hdf5', format='hdf5', overwrite_file = True)
         
     gravity_bridge.stop()
     return particle_system
 
-MWG_evolved_system = MWG_evolver(final_system, MW_potential, final_converter, N_objects, end_time= 365.25*10**6, time_step= 50)
+MWG_evolved_system = MWG_evolver(final_system, MW_potential, final_converter, N_objects, end_time= 10**8, time_step= 10**5)
 

@@ -4,6 +4,12 @@
 # In[ ]:
 
 
+directory = "/data/s1968653/Vanilla_output/"
+
+
+# In[ ]:
+
+
 #Here we import all the necessary dependencies
 import numpy as np
 import matplotlib.pyplot as plt
@@ -169,7 +175,7 @@ def vanilla_evolver(particle_system, converter, N_objects, end_time=4*10**3, tim
             
         ch_g2l.copy()
         if i%(100) == 0:
-            write_set_to_file(particle_system, 'Vanilla_run1_time=' +str(np.log10(times[i].value_in(units.yr)))[0:5] +'.hdf5', format='hdf5', overwrite_file = True)
+            write_set_to_file(particle_system, directory + 'Vanilla_run1_time=' +str(np.log10(times[i].value_in(units.yr)))[0:5] +'.hdf5', format='hdf5', overwrite_file = True)
         
     gravity_code.stop()
     write_set_to_file(particle_system, 'Vanilla_run1_final.hdf5', format='hdf5', overwrite_file = True)
