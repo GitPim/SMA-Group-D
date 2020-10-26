@@ -5,7 +5,6 @@
 
 
 directory = "/data/s1968653/MWG_output/"
-directory = "/home/masterofalorgia/"
 
 
 # In[ ]:
