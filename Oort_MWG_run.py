@@ -5,6 +5,7 @@
 
 
 directory = "/data/s1968653/MWG_output/"
+directory = "/home/masterofalorgia/"
 
 
 # In[ ]:
@@ -27,6 +28,7 @@ from amuse.lab import Rebound
 from amuse.lab import Mercury
 from amuse.community.ph4.interface import ph4
 from amuse.io import write_set_to_file, read_set_from_file
+from amuse.lab import Huayno
 
 
 # In[ ]:
@@ -74,7 +76,7 @@ def merge_two_bodies(bodies, particles_in_encounter):
 
 
 def resolve_collision(collision_detection, gravity_code, gravity_bridge, bodies, time):
-    print("Well, we have an actual collision between two or more objects.")
+    print("We have a collision.")
     print("This happened at time=", time.in_(units.yr))
     for ci in range(len(collision_detection.particles(0))): 
         encountering_particles = Particles(particles=[collision_detection.particles(0)[ci],
@@ -213,7 +215,7 @@ def MWG_evolver(particle_system, potential, converter, N_objects, end_time=4*10*
     if N_objects > 2*10**3:
         gravity_code = Mercury(final_converter)
     else:
-        gravity_code = ph4(final_converter)
+        gravity_code = Huayno(final_converter)
     
     stopping_condition = gravity_code.stopping_conditions.collision_detection
     stopping_condition.enable()
@@ -227,6 +229,8 @@ def MWG_evolver(particle_system, potential, converter, N_objects, end_time=4*10*
     gravity_bridge.timestep = 10 |units.yr
     
     times = np.arange(0., end_time, time_step) | units.yr
+    
+    dead_comets = []
     for i in tqdm(range(len(times))):
         gravity_bridge.evolve_model(times[i])
         while stopping_condition.is_set() and len(stopping_condition.particles(0)) != 0 and len(stopping_condition.particles(1)) != 0:
@@ -239,7 +243,27 @@ def MWG_evolver(particle_system, potential, converter, N_objects, end_time=4*10*
         if i%(100) == 0:
             write_set_to_file(particle_system, directory + 'MWG_run1_time=' +str(np.log10(times[i].value_in(units.yr)))[0:5] +'.hdf5', format='hdf5', overwrite_file = True)
         
+        out_of_bounds, escaped_comets = [], []
+        for i in range(len(particle_system)):
+            if particle_system[i].position.length() > 500 | units.AU:
+                escaped_comets.append(particle_system[i].name)
+                if particle_system[i].position.length() > 250000 | units.AU:
+                    out_of_bounds.append(particle_system[i])
+                    dead_comets.append(particle_system[i])
+        for particle in out_of_bounds:
+            particle_system.remove_particle(particle)
+            particle_system.synchronize_to(gravity_bridge.particles)
+        
+        print("The solar position is: ", particle_system[0].position.in_(units.AU))
+        print("The amount of currently escaped comets is ", len(escaped_comets))
+        print("The amount of dead comets is ", len(dead_comets))
+        print("The centre of mass velocity is ", particle_system.center_of_mass_velocity().in_(units.kms))
+        
+    print(particle_system)
+        
     gravity_bridge.stop()
+    write_set_to_file(particle_system, directory + 'MWG_run1_final.hdf5', format='hdf5', overwrite_file = True)
+    np.savetxt(directory + 'MWG_run1_escaped.txt', escaped_comets)
     return particle_system
 
 MWG_evolved_system = MWG_evolver(final_system, MW_potential, final_converter, N_objects, end_time= 10**8, time_step= 10**5)
