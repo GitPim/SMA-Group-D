@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[ ]:
+# In[1]:
 
 
 directory = "/data/s1968653/MWG_output/"
 
 
-# In[ ]:
+# In[2]:
 
 
 #Here we import all the necessary dependencies
@@ -30,7 +30,7 @@ from amuse.io import write_set_to_file, read_set_from_file
 from amuse.lab import Huayno
 
 
-# In[ ]:
+# In[3]:
 
 
 def random_positions_and_velocities(N_objects, sun_loc):
@@ -53,7 +53,7 @@ def random_positions_and_velocities(N_objects, sun_loc):
     return positions, velocities
 
 
-# In[ ]:
+# In[4]:
 
 
 def merge_two_bodies(bodies, particles_in_encounter):
@@ -71,7 +71,7 @@ def merge_two_bodies(bodies, particles_in_encounter):
         bodies.remove_particles(particles_in_encounter)
 
 
-# In[ ]:
+# In[5]:
 
 
 def resolve_collision(collision_detection, gravity_code, gravity_bridge, bodies, time):
@@ -85,7 +85,7 @@ def resolve_collision(collision_detection, gravity_code, gravity_bridge, bodies,
         bodies.synchronize_to(gravity_bridge.particles)
 
 
-# In[ ]:
+# In[6]:
 
 
 #Here we generate a basic solarsystem, with only the gas giants
@@ -95,14 +95,13 @@ def create_system():
     
     system = new_solar_system()
     system = system[system.mass > 10**-5 | units.MSun]
-    system.move_to_center()
     return system
     
     
 basic_giants_system = create_system()
 
 
-# In[ ]:
+# In[7]:
 
 
 #Define the number of Oort objects and create random velocities and positions
@@ -111,7 +110,7 @@ sun_loc = [basic_giants_system[0].x.in_(units.AU), basic_giants_system[0].y.in_(
 positions, velocities = random_positions_and_velocities(N_objects, sun_loc)
 
 
-# In[ ]:
+# In[8]:
 
 
 #Here we add the Oort cloud objects, according to a chosen distribution
@@ -124,14 +123,19 @@ def add_comet_objects(system, N_objects, rand_pos, rand_vel):
         oort.radius = (2.3 | units.km).in_(units.RSun) #This is purely non-zero for collisional purposes
         oort.position = (rand_pos[i, 0], rand_pos[i, 1], rand_pos[i, 2])
         oort.velocity = (rand_vel[i, 0], rand_vel[i, 1], rand_vel[i, 2])
+        oort.position += (1, 0, 0) * (8.5 | units.kpc)
+        oort.velocity += (0,1,0) * (220 | units.kms)
         
         system.add_particle(oort)
+    for i in range(5):
+        system[i].position += (1, 0, 0) * (8.5 | units.kpc)
+        system[i].velocity += (0,1,0) * (220 | units.kms)
     return system
 
 complete_system = add_comet_objects(basic_giants_system, N_objects, positions, velocities)
 
 
-# In[ ]:
+# In[9]:
 
 
 #Here we generate a galactic potential 
@@ -189,27 +193,29 @@ class MilkyWay_galaxy(object):
 MW_potential = MilkyWay_galaxy()
 
 
-# In[ ]:
+# In[10]:
 
 
 final_system = complete_system
-final_system.move_to_center()
 
 
-# In[ ]:
+# In[11]:
 
 
 #Here we perform the conversion for the system
 converter_length = get_orbital_elements_from_binary(final_system[0:2], G = constants.G)[2].in_(units.AU)
 final_converter=nbody_system.nbody_to_si(final_system.mass.sum(), 
                                    converter_length)
+#(final_system[0].position.length()).in_(units.AU)
 
 
-# In[ ]:
+# In[12]:
 
 
 #Here we evolve the basic system, with Milky way potential
 def MWG_evolver(particle_system, potential, converter, N_objects, end_time=4*10**3, time_step=0.1):
+    
+    names = ['Sun', 'Jupiter', 'Saturn', 'Uranus', 'Neptune']
     
     if N_objects > 2*10**3:
         gravity_code = Mercury(final_converter)
@@ -239,30 +245,34 @@ def MWG_evolver(particle_system, potential, converter, N_objects, end_time=4*10*
         ch_g2l.copy()
         
         
-        if i%(100) == 0:
-            write_set_to_file(particle_system, directory + 'MWG_run1_time=' +str(np.log10(times[i].value_in(units.yr)))[0:5] +'.hdf5', format='hdf5', overwrite_file = True)
+        if i%(50) == 0:
+            write_set_to_file(particle_system, directory + 'MWG_run4_time=' +str(np.log10(times[i].value_in(units.yr)))[0:5] +'.hdf5', format='hdf5', overwrite_file = True)
         
         out_of_bounds, escaped_comets = [], []
         for i in range(len(particle_system)):
-            if particle_system[i].position.length() > 500 | units.AU:
+            if (particle_system[i].position-particle_system[0].position).length() > 500 | units.AU:
                 escaped_comets.append(particle_system[i].name)
-                if particle_system[i].position.length() > 250000 | units.AU:
+                if (particle_system[i].position-particle_system[0].position).length() > 250000 | units.AU:
                     out_of_bounds.append(particle_system[i])
                     dead_comets.append(particle_system[i])
         for particle in out_of_bounds:
             particle_system.remove_particle(particle)
             particle_system.synchronize_to(gravity_bridge.particles)
+            
+        for i in range(1, 5):
+            print("The distance from ", names[i], " to the sun is ", (particle_system[i].position-particle_system[0].position).length().in_(units.AU))
         
-        print("The solar position is: ", particle_system[0].position.in_(units.AU))
+        print("The time is ", times[i])
         print("The amount of currently escaped comets is ", len(escaped_comets))
         print("The amount of dead comets is ", len(dead_comets))
-        print("The centre of mass velocity is ", particle_system.center_of_mass_velocity().in_(units.kms))
+        print("The centre of mass velocity is ", (particle_system.center_of_mass_velocity()-particle_system[0].velocity).in_(units.kms))
         
     print(particle_system)
         
     gravity_bridge.stop()
-    write_set_to_file(particle_system, directory + 'MWG_run1_final.hdf5', format='hdf5', overwrite_file = True)
-    np.savetxt(directory + 'MWG_run1_escaped.txt', escaped_comets)
+    write_set_to_file(particle_system, directory + 'MWG_run4_final.hdf5', format='hdf5', overwrite_file = True)
+    print("The escaped comets are", escaped_comets)
+    print("The dead comets are", dead_comets)
     return particle_system
 
 MWG_evolved_system = MWG_evolver(final_system, MW_potential, final_converter, N_objects, end_time= 10**8, time_step= 10**5)
