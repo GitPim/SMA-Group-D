@@ -9,3 +9,4 @@ An explanation for the different runs:
 - run 4-6: has all timesteps, but again breaks down after some 10^7 years (solver = Huayno)
 - run 7-9: (solver = Mercury)
 - run 10-12: runs for only 10 Myr and saves every 0.5 Myr (solver = Huayno)
+- run 13-15: (solver = Mercury)
