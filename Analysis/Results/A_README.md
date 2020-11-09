@@ -11,3 +11,6 @@ An explanation for the different runs:
 - run 7-9: (solver = Mercury)
 - run 10-12: runs for only 10 Myr and saves every 0.5 Myr (solver = Huayno)
 - run 13-15: (solver = Mercury)
+
+#Vanilla_tack_runs:
+- run 1-3: First succesfull tack run over 100 Myr, including close ups near the tack (solver = Mercury)
