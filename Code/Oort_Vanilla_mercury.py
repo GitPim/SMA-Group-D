@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[1]:
+# In[ ]:
 
 
 directory = "/data/s1968653/Vanilla_output/"
 
 
-# In[2]:
+# In[ ]:
 
 
 #Here we import all the necessary dependencies
@@ -28,9 +28,10 @@ from amuse.lab import Mercury
 from amuse.community.ph4.interface import ph4
 from amuse.io import write_set_to_file, read_set_from_file
 from amuse.community.mercury.interface import MercuryWayWard
+from amuse.ext.solarsystem import new_solar_system
 
 
-# In[3]:
+# In[ ]:
 
 
 # Function to generate random orbits for asteroids in the Solar System.
@@ -55,7 +56,7 @@ def random_positions_and_velocities(N_objects, sun_loc):
     return positions, velocities
 
 
-# In[4]:
+# In[ ]:
 
 
 def merge_two_bodies(bodies, particles_in_encounter):
@@ -76,7 +77,7 @@ def merge_two_bodies(bodies, particles_in_encounter):
     bodies.remove_particles(particles_in_encounter)
 
 
-# In[5]:
+# In[ ]:
 
 
 # To resolve a collision between two or more particles, we merge them together using their center of mass (velocity).
@@ -89,25 +90,64 @@ def resolve_collision(collision_detection, gravity_code, bodies, time):
         colliding_objects = encountering_particles.get_intersecting_subset_in(bodies)
         merge_two_bodies(bodies, colliding_objects)
         bodies.synchronize_to(gravity_code.particles) # Update bodies to contain 1 particle instead of 2
+        
+def sma_determinator(primary, secondary):
+    binary = Particles(0)
+    binary.add_particle(primary)
+    binary.add_particle(secondary)
+        
+    orbital_params = get_orbital_elements_from_binary(binary, G = constants.G)
+    return orbital_params[2]
 
 
-# In[6]:
+# In[ ]:
 
-
-#Here we generate a basic solarsystem, with only the gas giants
-from amuse.ext.solarsystem import new_solar_system
 
 def create_system():
     system = new_solar_system()
     system = system[system.mass > 10**-5 | units.MSun] # Takes gas giants and Sun only
     system.move_to_center()
-    return system
     
+    sun = Particles(1)
+    sun.name = "Sun"
+    sun.mass = 1.0 | units.MSun
+    sun.radius = 1.0 | units.RSun  
+    sun.position = (0, 0, 0) | units.AU
+    sun.velocity = (0, 0, 0) | units.kms
+    sun.density = 3*sun.mass/(4*np.pi*sun.radius**3)
     
+    names = ["Jupiter", "Saturn", "Uranus", "Neptune"]
+    masses = [317.8, 90, 15, 17] | units.MEarth
+    radii = [0.10049, 0.083703, 0.036455, 0.035392] | units.RSun
+    semis = [5.4, 7.1, 10.5, 13] | units.AU #[3.5, 4.9, 6.4, 8.4]
+    trues = [0, 90, 180, 270]| units.deg#np.random.uniform(0, 360, 4) | units.deg
+    longs = np.random.uniform(0, 360, 4) | units.deg
+    args = np.random.uniform(0, 360, 4) | units.deg
+    
+    for i in range(4):
+        orbital_elements = get_orbital_elements_from_binary(system[0]+ system[i+1], G=constants.G)
+        eccentricity, inclination = 0, orbital_elements[5]
+        
+        
+        sun_and_plan = new_binary_from_orbital_elements(sun[0].mass, masses[i], 
+                                          semis[i], 0, trues[i], inclination, longs[i], args[i], G=constants.G)
+        
+        planet = Particles(1)
+        planet.name = system[i+1].name
+        planet.mass = system[i+1].mass
+        planet.radius = system[i+1].radius # This is purely non-zero for collisional purposes
+        planet.position = (sun_and_plan[1].x-sun_and_plan[0].x, sun_and_plan[1].y-sun_and_plan[0].y, sun_and_plan[1].z-sun_and_plan[0].z)
+        planet.velocity = (sun_and_plan[1].vx-sun_and_plan[0].vx, sun_and_plan[1].vy-sun_and_plan[0].vy, sun_and_plan[1].vz-sun_and_plan[0].vz)
+        planet.density = 3*planet.mass/(4*np.pi*planet.radius**3)
+        sun.add_particle(planet)
+        
+    return sun
+        
 basic_giants_system = create_system()
+basic_giants_system.move_to_center()
 
 
-# In[7]:
+# In[ ]:
 
 
 #Define the number of asteroids and create random velocities and positions
@@ -116,7 +156,7 @@ sun_loc = [basic_giants_system[0].x.in_(units.AU), basic_giants_system[0].y.in_(
 positions, velocities = random_positions_and_velocities(N_objects, sun_loc)
 
 
-# In[8]:
+# In[ ]:
 
 
 # Here we add the asteroids, where orbit parameters were chosen from a uniform distribution
@@ -139,14 +179,14 @@ def add_comet_objects(system, N_objects, rand_pos, rand_vel):
 complete_system = add_comet_objects(basic_giants_system, N_objects, positions, velocities)
 
 
-# In[9]:
+# In[ ]:
 
 
 final_system = complete_system
 final_system.move_to_center()
 
 
-# In[10]:
+# In[ ]:
 
 
 #Here we perform the conversion for the system
@@ -155,12 +195,12 @@ final_converter=nbody_system.nbody_to_si(final_system.mass.sum(),
                                    converter_length)
 
 
-# In[11]:
+# In[ ]:
 
 
 #Here we evolve the basic system, without grandtack or Milky way potential
 
-def vanilla_evolver(particle_system, converter, N_objects, end_time=4*10**3, time_step=0.1):
+def vanilla_evolver(particle_system, converter, N_objects, end_time, time_step):
     
     names = ['Sun', 'Jupiter', 'Saturn', 'Uranus', 'Neptune']
     
@@ -176,13 +216,57 @@ def vanilla_evolver(particle_system, converter, N_objects, end_time=4*10**3, tim
     times = np.arange(0., end_time, time_step) | units.yr
     
     dead_comets = []
+    #---------------------------------------------------------------------------------------------------------
+    sma = [0, 0, 0, 0] | units.AU
+    correct_sma = [5.4, 7.1, 10.5, 13] | units.AU
+    eccentricities = [0, 0, 0, 0]
+    inclinations = [0, 0, 0, 0] | units.deg
+    
+    system = new_solar_system()
+    system = system[system.mass > 10**-5 | units.MSun] # Takes gas giants and Sun only
+    system.move_to_center()
+    for k in range(4):
+        orbital_elements = get_orbital_elements_from_binary(system[0]+ system[k+1], G=constants.G)
+        inclinations[k] =  orbital_elements[5]
+    #------------------------------------------------------------------------------------------------------------
+    
+    
     
     for i in tqdm(range(len(times))):
         gravity_code.evolve_model(times[i])
         ch_g2l.copy()
+        
+        #---------------------------------------------------------------------------------------------------------------
+        for j in range(4):
+            sma[j] = sma_determinator(gravity_code.central_particle, gravity_code.orbiters[j])
+        
+        for l in range(4):
+            if abs(sma[l]/correct_sma[l]) > 1.25 or abs(sma[l]/correct_sma[l]) < 0.75:
+                return
+        
+            elif abs(sma[l]/correct_sma[l]) > 1.05 or abs(sma[l]/correct_sma[l]) < 0.95:
+                print("Here", names[l+1], "was redefined")
+                binary = Particles(0)
+                binary.add_particle(gravity_code.central_particle)
+                binary.add_particle(gravity_code.orbiters[l])
+
+                orbital_params = get_orbital_elements_from_binary(binary, G = constants.G)
+                true_anomaly, ascending_node, pericenter = orbital_params[4].in_(units.deg), orbital_params[6].in_(units.deg), orbital_params[7].in_(units.deg)
+
+                sun_and_plan = new_binary_from_orbital_elements(1 | units.MSun, orbital_params[1], 
+                                                      correct_sma[l], eccentricities[l], true_anomaly, inclinations[l], ascending_node, pericenter, G=constants.G)
+
+                gravity_code.particles[l+1].position = (sun_and_plan[1].x-sun_and_plan[0].x, sun_and_plan[1].y-sun_and_plan[0].y, sun_and_plan[1].z-sun_and_plan[0].z)
+                gravity_code.particles[l+1].velocity = (sun_and_plan[1].vx-sun_and_plan[0].vx, sun_and_plan[1].vy-sun_and_plan[0].vy, sun_and_plan[1].vz-sun_and_plan[0].vz)
+            else:
+                pass
+        #----------------------------------------------------------------------------------------------------------------------
+        
+        
+        
             
-        if i%50:
-            write_set_to_file(gravity_code.orbiters, directory + 'Vanilla_run7_time=' + str(np.log10(times[i].value_in(units.yr)))[0:5] + '.hdf5', format='hdf5', overwrite_file = True)
+        if i%1000 == 0:
+            write_set_to_file(gravity_code.orbiters, directory + 'Vanilla_run16_time=' + str(np.log10(times[i].value_in(units.yr)))[0:5] + '.hdf5', format='hdf5', overwrite_file = True)
         
         out_of_bounds, escaped_comets = [], []
         for i in range(len(particle_system)):
@@ -195,21 +279,14 @@ def vanilla_evolver(particle_system, converter, N_objects, end_time=4*10**3, tim
             particle_system.remove_particle(particle)
             particle_system.synchronize_to(gravity_code.particles)
             
-        print("The solar position is: ", particle_system[0].position.in_(units.AU))
         print("The amount of currently escaped comets is ", len(escaped_comets))
         print("The amount of dead comets is ", len(dead_comets))
-        print("The centre of mass velocity is ", particle_system.center_of_mass_velocity().in_(units.kms))
+        print("The planetary positions are ", gravity_code.orbiters[0].position.length().in_(units.AU), gravity_code.orbiters[1].position.length().in_(units.AU), gravity_code.orbiters[2].position.length().in_(units.AU), gravity_code.orbiters[3].position.length().in_(units.AU))
     
     gravity_code.stop()
-    write_set_to_file(particle_system, directory + 'Vanilla_run7_final.hdf5', format='hdf5', overwrite_file = True)
+    write_set_to_file(gravity_code.orbiters, directory + 'Vanilla_run16_final.hdf5', format='hdf5', overwrite_file = True)
     return particle_system
     
     
-vanilla_evolved_system = vanilla_evolver(final_system, final_converter, N_objects, end_time= 10**8, time_step= 10**5)
-
-
-# In[ ]:
-
-
-
+vanilla_evolved_system = vanilla_evolver(final_system, final_converter, N_objects, end_time= 10**8, time_step= 5*10**3)
 
