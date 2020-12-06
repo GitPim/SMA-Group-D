@@ -7,7 +7,7 @@
 #SBATCH --mail-type="ALL"
 
 #SBATCH --partition="cpu-long"
-#SBATCH --time=24:00:00
+#SBATCH --time=60:00:00
 #SBATCH --tasks=24
 #SBATCH --mem=10G
 
@@ -30,17 +30,17 @@ echo "[$SHELL] CWD: "$CWD
 export PATH_TO_PYFILE=$CWD
 echo "[$SHELL] Path of python file: "$PATH_TO_PYFILE
 
-export PYFILE=Oort_MWG_run.py
+export PYFILE=Oort_MWG.py
 
 
 # Create a directory of local scratch on the node
 echo "[$SHELL] Node scratch: "$SCRATCH
-export RUNDIR=$SCRATCH/MWG_test
+export RUNDIR=$SCRATCH/Vanilla_test
 mkdir $RUNDIR
 echo "[$SHELL] Run directory"$RUNDIR
 
 # Create directory for plots
-export RESULTDIR=$RUNDIR/results
+export RESULTDIR=$RUNDIR/results_vanilla
 mkdir $RESULTDIR
 
 # copy script to local scratch directory and change into it
@@ -55,4 +55,4 @@ echo "[$SHELL] Script finished"
 echo "[$SHELL] Copy files back to cwd"
 cp -r $RESULTDIR $CWD/
 
-echo "[$SHELL] #### Finished MWG test. Have a nice day
+echo "[$SHELL] #### Finished Vanilla test. Have a nice day
