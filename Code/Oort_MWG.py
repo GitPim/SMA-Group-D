@@ -197,7 +197,7 @@ def add_comet_objects(post_tack_giants_system, N_objects, comet_positions, comet
     
     z_comp = np.arctan(100/8500.) #Determining the z-component of the sun's trajectory around the galactic center
     
-    for i in range(len(post_tock_giants_system)): #adding the sun's trajectory around the galactic center
+    for i in range(len(post_tack_giants_system)): #adding the sun's trajectory around the galactic center
         post_tack_giants_system[i].position += (1, 0, 0) * (8.5 | units.kpc) 
         post_tack_giants_system[i].velocity += (0,np.sqrt(1-z_comp**2),z_comp) * (220 | units.kms) 
     
