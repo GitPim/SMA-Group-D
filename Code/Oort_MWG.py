@@ -193,14 +193,13 @@ def add_comet_objects(post_tack_giants_system, N_objects, comet_positions, comet
         comet.radius = 0.0 | units.RSun 
         comet.position = (comet_positions[i, 0], comet_positions[i, 1], comet_positions[i, 2])
         comet.velocity = (comet_velocities[i, 0], comet_velocities[i, 1], comet_velocities[i, 2])
-        comet.position += (1, 0, 0) * (8.5 | units.kpc)
-        comet.velocity += (0,1,0) * (220 | units.kms) 
-        
         post_tack_giants_system.add_particle(comet)
-        
-    for i in range(5):
+    
+    z_comp = np.arctan(100/8500.) #Determining the z-component of the sun's trajectory around the galactic center
+    
+    for i in range(len(post_tock_giants_system)): #adding the sun's trajectory around the galactic center
         post_tack_giants_system[i].position += (1, 0, 0) * (8.5 | units.kpc) 
-        post_tack_giants_system[i].velocity += (0,1,0) * (220 | units.kms) 
+        post_tack_giants_system[i].velocity += (0,np.sqrt(1-z_comp**2),z_comp) * (220 | units.kms) 
     
     
     return post_tack_giants_system
